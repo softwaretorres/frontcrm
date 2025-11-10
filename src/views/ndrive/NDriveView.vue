@@ -1,249 +1,415 @@
 <template>
-  <div class="min-h-screen bg-gray-50">
-    <!-- Navbar -->
-    <nav class="bg-white shadow-sm border-b border-gray-200">
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div class="flex justify-between h-16">
-          <div class="flex items-center space-x-4">
-            <router-link to="/dashboard" class="text-gray-600 hover:text-gray-900">
-              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-              </svg>
-            </router-link>
-            <h1 class="text-xl font-bold text-gray-900">nDrive</h1>
-          </div>
+  <div class="h-screen flex flex-col bg-gray-50">
+    <!-- Toolbar -->
+    <Toolbar
+      :has-selection="store.hasSelection"
+      :selected-count="store.selectedFiles.size"
+      :total-count="store.files.length"
+      :has-files="store.files.length > 0"
+      :view-mode="store.viewMode"
+      :sort-by="store.sortBy"
+      @toggle-select-all="handleToggleSelectAll"
+      @create-folder="showCreateFolderModal = true"
+      @upload="handleUploadClick"
+      @download-selected="handleDownloadSelected"
+      @share-selected="handleShareSelected"
+      @delete-selected="handleDeleteSelected"
+      @search="handleSearch"
+      @sort="handleSort"
+      @view-mode="handleViewMode"
+    />
 
-          <div class="flex items-center space-x-4">
-            <span class="text-sm text-gray-700">{{ authStore.user?.fullName }}</span>
-            <button
-              @click="handleLogout"
-              class="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              Cerrar sesión
-            </button>
-          </div>
-        </div>
-      </div>
-    </nav>
+    <!-- Breadcrumbs -->
+    <Breadcrumbs
+      :breadcrumbs="store.breadcrumbs"
+      @navigate="handleBreadcrumbNavigate"
+    />
 
-    <!-- Main Content -->
-    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <!-- Connection Status -->
-      <div v-if="!ndriveStore.isConnected" class="bg-white rounded-lg shadow-sm p-8 border border-gray-200 text-center">
-        <div class="max-w-md mx-auto">
-          <div class="bg-blue-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-            <svg class="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-            </svg>
-          </div>
-          <h2 class="text-2xl font-bold text-gray-900 mb-2">Conecta tu nDrive</h2>
-          <p class="text-gray-600 mb-6">
-            Conecta tu cuenta de nDrive para acceder a tus archivos y carpetas
-          </p>
-          <button
-            @click="handleConnect"
-            :disabled="ndriveStore.loading"
-            class="px-6 py-3 bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+    <!-- Contenido principal -->
+    <div class="flex-1 overflow-auto">
+      <!-- Loading -->
+      <div v-if="store.isLoading && store.files.length === 0" class="flex items-center justify-center h-64">
+        <div class="text-center">
+          <svg
+            class="w-12 h-12 text-blue-600 animate-spin mx-auto"
+            fill="none"
+            viewBox="0 0 24 24"
           >
-            <span v-if="!ndriveStore.loading">Conectar nDrive</span>
-            <span v-else>Conectando...</span>
-          </button>
-          <p v-if="ndriveStore.error" class="mt-4 text-sm text-red-600">
-            {{ ndriveStore.error }}
-          </p>
+            <circle
+              class="opacity-25"
+              cx="12"
+              cy="12"
+              r="10"
+              stroke="currentColor"
+              stroke-width="4"
+            ></circle>
+            <path
+              class="opacity-75"
+              fill="currentColor"
+              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+            ></path>
+          </svg>
+          <p class="mt-4 text-gray-600">Cargando archivos...</p>
         </div>
       </div>
 
-      <!-- Connected State -->
-      <div v-else>
-        <!-- Header with user info -->
-        <div class="bg-white rounded-lg shadow-sm p-6 border border-gray-200 mb-6">
-          <div class="flex items-center justify-between">
-            <div class="flex items-center space-x-4">
-              <div class="bg-green-100 p-3 rounded-full">
-                <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-              <div>
-                <h3 class="text-lg font-semibold text-gray-900">Conectado a nDrive</h3>
-                <p class="text-sm text-gray-600">{{ ndriveStore.userEmail }}</p>
-              </div>
-            </div>
+      <!-- Empty state -->
+      <div v-else-if="store.files.length === 0" class="flex items-center justify-center h-64">
+        <div class="text-center">
+          <svg class="w-16 h-16 text-gray-300 mx-auto" fill="currentColor" viewBox="0 0 20 20">
+            <path
+              d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"
+            />
+          </svg>
+          <h3 class="mt-4 text-lg font-medium text-gray-900">Esta carpeta está vacía</h3>
+          <p class="mt-2 text-sm text-gray-500">Sube archivos o crea una nueva carpeta</p>
+          <div class="mt-6 flex gap-3 justify-center">
             <button
-              @click="handleDisconnect"
-              class="px-4 py-2 text-sm font-medium text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+              class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
+              @click="handleUploadClick"
             >
-              Desconectar
+              Subir archivos
             </button>
-          </div>
-        </div>
-
-        <!-- Breadcrumbs -->
-        <div class="bg-white rounded-lg shadow-sm p-4 border border-gray-200 mb-4">
-          <nav class="flex items-center space-x-2 text-sm">
             <button
-              v-for="(crumb, index) in ndriveStore.breadcrumbs"
-              :key="index"
-              @click="navigateTo(crumb.id, crumb.name)"
-              class="flex items-center text-gray-600 hover:text-gray-900 transition-colors"
-              :class="{ 'font-medium text-gray-900': index === ndriveStore.breadcrumbs.length - 1 }"
+              class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+              @click="showCreateFolderModal = true"
             >
-              <span>{{ crumb.name }}</span>
-              <svg
-                v-if="index < ndriveStore.breadcrumbs.length - 1"
-                class="w-4 h-4 mx-2"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-              </svg>
+              Nueva carpeta
             </button>
-          </nav>
-        </div>
-
-        <!-- Files Grid -->
-        <div v-if="ndriveStore.loading" class="flex items-center justify-center py-12">
-          <div class="text-center">
-            <svg class="animate-spin h-8 w-8 text-primary-600 mx-auto mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
-            <p class="text-gray-600">Cargando archivos...</p>
-          </div>
-        </div>
-
-        <div v-else-if="ndriveStore.currentFiles.length === 0" class="bg-white rounded-lg shadow-sm p-12 border border-gray-200 text-center">
-          <div class="bg-gray-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-            <svg class="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-            </svg>
-          </div>
-          <h3 class="text-lg font-medium text-gray-900 mb-2">Carpeta vacía</h3>
-          <p class="text-gray-600">No hay archivos en esta ubicación</p>
-        </div>
-
-        <div v-else class="bg-white rounded-lg shadow-sm border border-gray-200">
-          <div class="divide-y divide-gray-200">
-            <div
-              v-for="file in ndriveStore.currentFiles"
-              :key="file.id"
-              class="p-4 hover:bg-gray-50 transition-colors cursor-pointer flex items-center justify-between"
-              @click="handleFileClick(file)"
-            >
-              <div class="flex items-center space-x-4 flex-1">
-                <div :class="[
-                  'p-2 rounded-lg',
-                  file.isFolder ? 'bg-yellow-100' : 'bg-blue-100'
-                ]">
-                  <svg v-if="file.isFolder" class="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-                  </svg>
-                  <svg v-else class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                  </svg>
-                </div>
-                <div class="flex-1 min-w-0">
-                  <p class="text-sm font-medium text-gray-900 truncate">
-                    {{ file.name }}
-                  </p>
-                  <p class="text-xs text-gray-500">
-                    {{ formatDate(file.modifiedTime) }}
-                    <span v-if="!file.isFolder"> · {{ formatSize(file.size) }}</span>
-                  </p>
-                </div>
-              </div>
-              <button
-                v-if="!file.isFolder"
-                @click.stop="handleDownload(file)"
-                class="ml-4 p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                </svg>
-              </button>
-            </div>
           </div>
         </div>
       </div>
-    </main>
+
+      <!-- Vista de cuadrícula -->
+      <div
+        v-else-if="store.viewMode === 'grid'"
+        class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 p-4"
+      >
+        <FileCard
+          v-for="file in store.files"
+          :key="file.id"
+          :file="file"
+          :is-selected="store.selectedFiles.has(file.id)"
+          @click="handleFileClick(file, $event)"
+          @dblclick="handleFileDoubleClick(file)"
+          @contextmenu="handleContextMenu(file, $event)"
+          @toggle-select="store.toggleSelectFile(file.id)"
+          @toggle-star="store.toggleStar(file.id)"
+        />
+      </div>
+
+      <!-- Vista de lista -->
+      <div v-else class="bg-white">
+        <!-- Encabezados -->
+        <div class="flex items-center gap-4 px-4 py-2 border-b border-gray-200 bg-gray-50 text-xs font-medium text-gray-500 uppercase">
+          <div class="w-4"></div>
+          <div class="w-8"></div>
+          <div class="flex-1">Nombre</div>
+          <div class="hidden lg:block w-40">Propietario</div>
+          <div class="hidden md:block w-32">Última modificación</div>
+          <div class="hidden sm:block w-24 text-right">Tamaño</div>
+          <div class="w-10"></div>
+          <div class="w-10"></div>
+        </div>
+
+        <!-- Items -->
+        <FileListItem
+          v-for="file in store.files"
+          :key="file.id"
+          :file="file"
+          :is-selected="store.selectedFiles.has(file.id)"
+          @click="handleFileClick(file, $event)"
+          @dblclick="handleFileDoubleClick(file)"
+          @contextmenu="handleContextMenu(file, $event)"
+          @toggle-select="store.toggleSelectFile(file.id)"
+          @toggle-star="store.toggleStar(file.id)"
+        />
+      </div>
+
+      <!-- Cargar más -->
+      <div v-if="store.nextPageToken && !store.isLoading" class="p-4 text-center">
+        <button
+          class="px-6 py-2 text-sm font-medium text-blue-600 border border-blue-600 rounded-lg hover:bg-blue-50"
+          @click="store.loadMoreFiles()"
+        >
+          Cargar más
+        </button>
+      </div>
+    </div>
+
+    <!-- Upload Progress -->
+    <UploadProgress
+      :uploads="Array.from(store.uploadQueue.values())"
+      @close="() => {}"
+    />
+
+    <!-- Input oculto para subir archivos -->
+    <input
+      ref="fileInput"
+      type="file"
+      multiple
+      class="hidden"
+      @change="handleFileSelect"
+    />
+
+    <!-- Modal crear carpeta -->
+    <Teleport to="body">
+      <div
+        v-if="showCreateFolderModal"
+        class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+        @click.self="showCreateFolderModal = false"
+      >
+        <div class="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+          <h3 class="text-lg font-semibold text-gray-900 mb-4">Nueva carpeta</h3>
+          <input
+            v-model="newFolderName"
+            type="text"
+            placeholder="Nombre de la carpeta"
+            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            @keyup.enter="handleCreateFolder"
+          />
+          <div class="flex gap-3 mt-6 justify-end">
+            <button
+              class="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg"
+              @click="showCreateFolderModal = false"
+            >
+              Cancelar
+            </button>
+            <button
+              class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
+              :disabled="!newFolderName.trim()"
+              @click="handleCreateFolder"
+            >
+              Crear
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- Context Menu -->
+    <Teleport to="body">
+      <div
+        v-if="contextMenu.show"
+        :style="{ top: `${contextMenu.y}px`, left: `${contextMenu.x}px` }"
+        class="fixed bg-white rounded-lg shadow-xl border border-gray-200 py-1 z-50 min-w-48"
+        @click="contextMenu.show = false"
+      >
+        <button
+          class="w-full px-4 py-2 text-sm text-left hover:bg-gray-100 flex items-center gap-3"
+          @click="handleDownloadFile(contextMenu.file!)"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+          </svg>
+          Descargar
+        </button>
+        <button
+          class="w-full px-4 py-2 text-sm text-left hover:bg-gray-100 flex items-center gap-3"
+          @click="handleRenameFile(contextMenu.file!)"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+          </svg>
+          Renombrar
+        </button>
+        <button
+          class="w-full px-4 py-2 text-sm text-left hover:bg-gray-100 flex items-center gap-3"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+          </svg>
+          Compartir
+        </button>
+        <hr class="my-1" />
+        <button
+          class="w-full px-4 py-2 text-sm text-left hover:bg-red-50 text-red-600 flex items-center gap-3"
+          @click="handleDeleteFile(contextMenu.file!)"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+          </svg>
+          Eliminar
+        </button>
+      </div>
+    </Teleport>
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { useAuthStore } from '@/stores/auth.store'
-import { useNDriveStore } from '@/stores/ndrive.store'
-import type { NDriveFile } from '@/types'
+import { ref, onMounted } from 'vue'
+import { useDriveStore } from '@/stores/ndrive.store'
+import type { DriveFile, DriveFolder } from '@/types'
+import { isFolder } from '@/utils/fileHelpers'
+import Toolbar from '@/components/ndrive/Toolbar.vue'
+import Breadcrumbs from '@/components/ndrive/Breadcrumbs.vue'
+import FileCard from '@/components/ndrive/Filecard.vue'
+import FileListItem from '@/components/ndrive/Filelistitem.vue'
+import UploadProgress from '@/components/ndrive/Uploadprogress.vue'
 
-const router = useRouter()
-const authStore = useAuthStore()
-const ndriveStore = useNDriveStore()
-
-onMounted(async () => {
-  await ndriveStore.checkConnection()
-  if (ndriveStore.isConnected) {
-    await ndriveStore.loadFiles()
-  }
+const store = useDriveStore()
+const fileInput = ref<HTMLInputElement>()
+const showCreateFolderModal = ref(false)
+const newFolderName = ref('')
+const contextMenu = ref<{
+  show: boolean
+  x: number
+  y: number
+  file: DriveFile | null
+}>({
+  show: false,
+  x: 0,
+  y: 0,
+  file: null,
 })
 
-const handleConnect = async () => {
+onMounted(async () => {
+  await store.loadFiles()
+})
+
+function handleUploadClick() {
+  fileInput.value?.click()
+}
+
+async function handleFileSelect(event: Event) {
+  const target = event.target as HTMLInputElement
+  const files = Array.from(target.files || [])
+
+  for (const file of files) {
+    try {
+      await store.uploadFile(file)
+    } catch (error) {
+      console.error('Error uploading file:', error)
+    }
+  }
+
+  // Reset input
+  if (target) target.value = ''
+}
+
+async function handleCreateFolder() {
+  if (!newFolderName.value.trim()) return
+
   try {
-    await ndriveStore.connect()
+    await store.createFolder(newFolderName.value.trim())
+    newFolderName.value = ''
+    showCreateFolderModal.value = false
   } catch (error) {
-    console.error('Error al conectar:', error)
+    console.error('Error creating folder:', error)
   }
 }
 
-const handleDisconnect = async () => {
-  if (confirm('¿Estás seguro de que deseas desconectar tu cuenta de nDrive?')) {
+function handleFileClick(file: DriveFile, event: MouseEvent) {
+  if (event.ctrlKey || event.metaKey) {
+    store.toggleSelectFile(file.id)
+  } else if (event.shiftKey) {
+    // TODO: Implementar selección múltiple con shift
+    store.toggleSelectFile(file.id)
+  } else {
+    store.clearSelection()
+    store.selectFile(file.id)
+  }
+}
+
+async function handleFileDoubleClick(file: DriveFile) {
+  if (isFolder(file.mimeType)) {
+    await store.navigateToFolder(file as DriveFolder)
+  } else {
+    // Abrir preview o descargar
+    window.open(file.webViewLink, '_blank')
+  }
+}
+
+function handleContextMenu(file: DriveFile, event: MouseEvent) {
+  contextMenu.value = {
+    show: true,
+    x: event.clientX,
+    y: event.clientY,
+    file,
+  }
+}
+
+async function handleBreadcrumbNavigate(index: number) {
+  await store.navigateToBreadcrumb(index)
+}
+
+function handleToggleSelectAll() {
+  if (store.hasSelection && store.selectedFiles.size === store.files.length) {
+    store.clearSelection()
+  } else {
+    store.selectAll()
+  }
+}
+
+async function handleDownloadSelected() {
+  for (const file of store.selectedFilesArray) {
     try {
-      await ndriveStore.disconnect()
+      await store.downloadFile(file)
     } catch (error) {
-      console.error('Error al desconectar:', error)
+      console.error('Error downloading file:', error)
     }
   }
 }
 
-const handleFileClick = (file: NDriveFile) => {
-  if (file.isFolder) {
-    navigateTo(file.id, file.name)
-  }
+function handleShareSelected() {
+  // TODO: Implementar diálogo de compartir
+  console.log('Share selected files')
 }
 
-const navigateTo = (folderId: string | null, folderName: string) => {
-  ndriveStore.navigateToFolder(folderId, folderName)
-}
+async function handleDeleteSelected() {
+  if (!confirm(`¿Eliminar ${store.selectedFiles.size} archivo(s)?`)) return
 
-const handleDownload = async (file: NDriveFile) => {
   try {
-    await ndriveStore.downloadFile(file.id, file.name)
+    await store.deleteSelectedFiles()
   } catch (error) {
-    console.error('Error al descargar:', error)
+    console.error('Error deleting files:', error)
   }
 }
 
-const handleLogout = async () => {
-  await authStore.logout()
-  router.push('/login')
+function handleSearch(query: string) {
+  // TODO: Implementar búsqueda
+  console.log('Search:', query)
 }
 
-const formatDate = (dateString: string): string => {
-  const date = new Date(dateString)
-  return date.toLocaleDateString('es-ES', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric'
-  })
+function handleSort(field: string) {
+  store.setSortBy(field as 'name' | 'modifiedTime' | 'size')
 }
 
-const formatSize = (bytes: number): string => {
-  if (bytes === 0) return '0 Bytes'
-  const k = 1024
-  const sizes = ['Bytes', 'KB', 'MB', 'GB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i]
+function handleViewMode(mode: 'grid' | 'list') {
+  store.setViewMode(mode)
 }
+
+async function handleDownloadFile(file: DriveFile) {
+  try {
+    await store.downloadFile(file)
+  } catch (error) {
+    console.error('Error downloading file:', error)
+  }
+}
+
+async function handleRenameFile(file: DriveFile) {
+  const newName = prompt('Nuevo nombre:', file.name)
+  if (!newName || newName === file.name) return
+
+  try {
+    await store.renameFile(file.id, newName)
+  } catch (error) {
+    console.error('Error renaming file:', error)
+  }
+}
+
+async function handleDeleteFile(file: DriveFile) {
+  if (!confirm(`¿Eliminar "${file.name}"?`)) return
+
+  try {
+    await store.deleteFile(file.id)
+  } catch (error) {
+    console.error('Error deleting file:', error)
+  }
+}
+
+// Cerrar context menu al hacer click fuera
+document.addEventListener('click', () => {
+  contextMenu.value.show = false
+})
 </script>

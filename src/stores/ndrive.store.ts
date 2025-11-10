@@ -1,184 +1,294 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { ndriveService } from '@/api/ndrive/ndrive.service'
-import type { NDriveFile, NDriveConnection } from '@/types'
+import type { DriveFile, DriveFolder, UploadProgress } from '@/types/drive'
+import { driveApi } from '@/api/ndrive/ndrive.service'
 
-export const useNDriveStore = defineStore('ndrive', () => {
-  // State
-  const connected = ref(false)
-  const userEmail = ref<string | null>(null)
-  const userName = ref<string | null>(null)
-  const files = ref<NDriveFile[]>([])
-  const currentFolderId = ref<string | null>(null)
-  const loading = ref(false)
-  const error = ref<string | null>(null)
-  const breadcrumbs = ref<{ id: string | null; name: string }[]>([
-    { id: null, name: 'Mi Drive' }
+export const useDriveStore = defineStore('drive', () => {
+  // Estado
+  const files = ref<DriveFile[]>([])
+  const currentFolder = ref<DriveFolder | null>(null)
+  const selectedFiles = ref<Set<string>>(new Set())
+  const isLoading = ref(false)
+  const uploadQueue = ref<Map<string, UploadProgress>>(new Map())
+  const nextPageToken = ref<string | undefined>()
+  const breadcrumbs = ref<Array<{ id: string; name: string }>>([
+    { id: 'root', name: 'Mi unidad' },
   ])
+  const viewMode = ref<'grid' | 'list'>('grid')
+  const sortBy = ref<'name' | 'modifiedTime' | 'size'>('name')
+  const sortOrder = ref<'asc' | 'desc'>('asc')
 
-  // Getters
-  const isConnected = computed(() => connected.value)
-  const currentFiles = computed(() => files.value)
-  const folders = computed(() => files.value.filter(f => f.isFolder))
-  const documents = computed(() => files.value.filter(f => !f.isFolder))
+  // Computed
+  const sortedFiles = computed(() => {
+    const sorted = [...files.value]
 
-  // Actions
-  async function checkConnection() {
-    try {
-      loading.value = true
-      const response = await ndriveService.getConnectionStatus()
+    sorted.sort((a, b) => {
+      // Las carpetas siempre van primero
+      if (a.mimeType.includes('folder') && !b.mimeType.includes('folder')) return -1
+      if (!a.mimeType.includes('folder') && b.mimeType.includes('folder')) return 1
 
-      if (response.success && response.data.connected) {
-        connected.value = true
-        userEmail.value = response.data.email || null
-        userName.value = response.data.name || null
-      } else {
-        connected.value = false
-        userEmail.value = null
-        userName.value = null
+      let comparison = 0
+      switch (sortBy.value) {
+        case 'name':
+          comparison = a.name.localeCompare(b.name)
+          break
+        case 'modifiedTime':
+          comparison = new Date(a.modifiedTime).getTime() - new Date(b.modifiedTime).getTime()
+          break
+        case 'size':
+          comparison = (a.size || 0) - (b.size || 0)
+          break
       }
-    } catch (err: any) {
-      connected.value = false
-      error.value = err.response?.data?.message || 'Error al verificar conexión'
-    } finally {
-      loading.value = false
-    }
-  }
 
-  async function connect() {
+      return sortOrder.value === 'asc' ? comparison : -comparison
+    })
+
+    return sorted
+  })
+
+
+
+
+  const selectedFilesArray = computed(() => {
+    return files.value.filter((f) => selectedFiles.value.has(f.id))
+  })
+
+  const hasSelection = computed(() => selectedFiles.value.size > 0)
+
+  const activeUploads = computed(() => {
+    return Array.from(uploadQueue.value.values()).filter((u) => u.status === 'uploading')
+  })
+
+  // Acciones
+
+  async function loadFiles(folderId?: string) {
+    isLoading.value = true
     try {
-      loading.value = true
-      error.value = null
-
-      const response = await ndriveService.connect()
-
-      if (response.success && response.data.authUrl) {
-        // Abrir ventana de autenticación
-        window.open(response.data.authUrl, '_blank', 'width=600,height=700')
-
-        // Escuchar evento de conexión exitosa
-        window.addEventListener('ndrive-connected', handleConnectionSuccess)
-      }
-    } catch (err: any) {
-      error.value = err.response?.data?.message || 'Error al conectar con nDrive'
-      throw err
+      const response = await driveApi.listFiles(folderId)
+      files.value = response.files
+      nextPageToken.value = response.nextPageToken
+    } catch (error) {
+      console.error('Error loading files:', error)
+      throw error
     } finally {
-      loading.value = false
+      isLoading.value = false
     }
   }
 
-  async function disconnect() {
+  async function loadMoreFiles() {
+    if (!nextPageToken.value || isLoading.value) return
+
+    isLoading.value = true
     try {
-      loading.value = true
-      error.value = null
-
-      await ndriveService.disconnect()
-
-      connected.value = false
-      userEmail.value = null
-      userName.value = null
-      files.value = []
-      currentFolderId.value = null
-      breadcrumbs.value = [{ id: null, name: 'Mi Drive' }]
-    } catch (err: any) {
-      error.value = err.response?.data?.message || 'Error al desconectar'
-      throw err
+      const response = await driveApi.listFiles(
+        currentFolder.value?.id,
+        nextPageToken.value
+      )
+      files.value.push(...response.files)
+      nextPageToken.value = response.nextPageToken
+    } catch (error) {
+      console.error('Error loading more files:', error)
     } finally {
-      loading.value = false
+      isLoading.value = false
     }
   }
 
-  async function loadFiles(folderId: string | null = null) {
-    try {
-      loading.value = true
-      error.value = null
+  async function navigateToFolder(folder: DriveFolder) {
+    currentFolder.value = folder
+    await loadFiles(folder.id)
 
-      const response = await ndriveService.listFiles(folderId || undefined)
-
-      if (response.success) {
-        files.value = response.data.files
-        currentFolderId.value = folderId
-      }
-    } catch (err: any) {
-      error.value = err.response?.data?.message || 'Error al cargar archivos'
-      throw err
-    } finally {
-      loading.value = false
-    }
-  }
-
-  async function downloadFile(fileId: string, fileName: string) {
-    try {
-      loading.value = true
-      error.value = null
-
-      const blob = await ndriveService.downloadFile(fileId)
-
-      // Crear link de descarga
-      const url = window.URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = fileName
-      link.click()
-
-      window.URL.revokeObjectURL(url)
-    } catch (err: any) {
-      error.value = err.response?.data?.message || 'Error al descargar archivo'
-      throw err
-    } finally {
-      loading.value = false
-    }
-  }
-
-  function navigateToFolder(folderId: string | null, folderName: string) {
-    if (folderId === null) {
-      // Volver a raíz
-      breadcrumbs.value = [{ id: null, name: 'Mi Drive' }]
+    // Actualizar breadcrumbs
+    const index = breadcrumbs.value.findIndex((b) => b.id === folder.id)
+    if (index >= 0) {
+      breadcrumbs.value = breadcrumbs.value.slice(0, index + 1)
     } else {
-      // Buscar si ya existe en breadcrumbs
-      const existingIndex = breadcrumbs.value.findIndex(b => b.id === folderId)
-
-      if (existingIndex >= 0) {
-        // Si existe, cortar hasta ese punto
-        breadcrumbs.value = breadcrumbs.value.slice(0, existingIndex + 1)
-      } else {
-        // Si no existe, agregar
-        breadcrumbs.value.push({ id: folderId, name: folderName })
-      }
+      breadcrumbs.value.push({ id: folder.id, name: folder.name })
     }
-
-    loadFiles(folderId)
   }
 
-  function handleConnectionSuccess() {
-    connected.value = true
-    checkConnection()
-    window.removeEventListener('ndrive-connected', handleConnectionSuccess)
+  async function navigateToBreadcrumb(index: number) {
+    breadcrumbs.value = breadcrumbs.value.slice(0, index + 1)
+    const target = breadcrumbs.value[index]
+
+    if (target?.id === 'root') {
+      currentFolder.value = null
+      await loadFiles()
+    } else {
+      const folder = files.value.find((f) => f.id === target?.id) as DriveFolder
+      if (folder) {
+        currentFolder.value = folder
+        await loadFiles(folder.id)
+      }
+    }
+  }
+
+  async function uploadFile(file: File, parentId?: string) {
+    console.warn('Upload no implementado en el backend aún')
+    alert('La funcionalidad de subir archivos aún no está implementada en el backend')
+    throw new Error('Funcionalidad no disponible aún')
+
+    /* TODO: Descomentar cuando se implemente en el backend
+    const uploadId = `${Date.now()}-${file.name}`
+
+    uploadQueue.value.set(uploadId, {
+      fileId: uploadId,
+      fileName: file.name,
+      progress: 0,
+      status: 'uploading',
+    })
+
+    try {
+      const uploadedFile = await driveApi.uploadFile(
+        file,
+        parentId || currentFolder.value?.id,
+        (progress) => {
+          const upload = uploadQueue.value.get(uploadId)
+          if (upload) {
+            upload.progress = progress
+            uploadQueue.value.set(uploadId, { ...upload })
+          }
+        }
+      )
+
+      uploadQueue.value.set(uploadId, {
+        fileId: uploadId,
+        fileName: file.name,
+        progress: 100,
+        status: 'completed',
+      })
+
+      // Agregar archivo a la lista
+      files.value.unshift(uploadedFile)
+
+      // Limpiar después de 3 segundos
+      setTimeout(() => {
+        uploadQueue.value.delete(uploadId)
+      }, 3000)
+
+      return uploadedFile
+    } catch (error) {
+      uploadQueue.value.set(uploadId, {
+        fileId: uploadId,
+        fileName: file.name,
+        progress: 0,
+        status: 'error',
+        error: error instanceof Error ? error.message : 'Error desconocido',
+      })
+      throw error
+    }
+    */
+  }
+
+  async function createFolder(name: string, parentId?: string) {
+    console.warn('Create folder no implementado en el backend aún')
+    alert('La funcionalidad de crear carpetas aún no está implementada en el backend')
+    throw new Error('Funcionalidad no disponible aún')
+  }
+
+  async function deleteFile(fileId: string) {
+    console.warn('Delete no implementado en el backend aún')
+    alert('La funcionalidad de eliminar aún no está implementada en el backend')
+    throw new Error('Funcionalidad no disponible aún')
+  }
+
+  async function deleteSelectedFiles() {
+    console.warn('Delete selected no implementado en el backend aún')
+    alert('La funcionalidad de eliminar aún no está implementada en el backend')
+    throw new Error('Funcionalidad no disponible aún')
+  }
+
+  async function renameFile(fileId: string, newName: string) {
+    console.warn('Rename no implementado en el backend aún')
+    alert('La funcionalidad de renombrar aún no está implementada en el backend')
+    throw new Error('Funcionalidad no disponible aún')
+  }
+
+  async function toggleStar(fileId: string) {
+    console.warn('Star/Unstar no implementado en el backend aún')
+    alert('La funcionalidad de destacar aún no está implementada en el backend')
+    throw new Error('Funcionalidad no disponible aún')
+  }
+
+  async function downloadFile(file: DriveFile) {
+    // Abrir en nueva pestaña usando webViewLink de Google Drive
+    if (file.webViewLink) {
+      window.open(file.webViewLink, '_blank')
+    } else {
+      alert('Este archivo no tiene un enlace de visualización disponible')
+    }
+  }
+
+  function selectFile(fileId: string) {
+    selectedFiles.value.add(fileId)
+  }
+
+  function deselectFile(fileId: string) {
+    selectedFiles.value.delete(fileId)
+  }
+
+  function toggleSelectFile(fileId: string) {
+    if (selectedFiles.value.has(fileId)) {
+      selectedFiles.value.delete(fileId)
+    } else {
+      selectedFiles.value.add(fileId)
+    }
+  }
+
+  function selectAll() {
+    files.value.forEach((f) => selectedFiles.value.add(f.id))
+  }
+
+  function clearSelection() {
+    selectedFiles.value.clear()
+  }
+
+  function setSortBy(field: 'name' | 'modifiedTime' | 'size') {
+    if (sortBy.value === field) {
+      sortOrder.value = sortOrder.value === 'asc' ? 'desc' : 'asc'
+    } else {
+      sortBy.value = field
+      sortOrder.value = 'asc'
+    }
+  }
+
+  function setViewMode(mode: 'grid' | 'list') {
+    viewMode.value = mode
   }
 
   return {
-    // State
-    connected,
-    userEmail,
-    userName,
-    files,
-    currentFolderId,
-    loading,
-    error,
+    // Estado
+    files: sortedFiles,
+    currentFolder,
+    selectedFiles,
+    selectedFilesArray,
+    hasSelection,
+    isLoading,
+    uploadQueue,
+    activeUploads,
+    nextPageToken,
     breadcrumbs,
+    viewMode,
+    sortBy,
+    sortOrder,
 
-    // Getters
-    isConnected,
-    currentFiles,
-    folders,
-    documents,
-
-    // Actions
-    checkConnection,
-    connect,
-    disconnect,
+    // Acciones
     loadFiles,
+    loadMoreFiles,
+    navigateToFolder,
+    navigateToBreadcrumb,
+    uploadFile,
+    createFolder,
+    deleteFile,
+    deleteSelectedFiles,
+    renameFile,
+    toggleStar,
     downloadFile,
-    navigateToFolder
+    selectFile,
+    deselectFile,
+    toggleSelectFile,
+    selectAll,
+    clearSelection,
+    setSortBy,
+    setViewMode,
   }
 })

@@ -21,6 +21,8 @@ export const API_CONFIG = {
     },
     NDRIVE: {
       CONNECT: '/ndrive/connect',
+      STATUS: '/ndrive/status',
+
       DISCONNECT: '/ndrive/disconnect',
       FILES: '/ndrive/files',
       FOLDERS: '/ndrive/folders'
