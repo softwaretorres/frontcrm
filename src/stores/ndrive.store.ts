@@ -65,6 +65,7 @@ export const useDriveStore = defineStore('drive', () => {
     isLoading.value = true
     try {
       const response = await driveApi.listFiles(folderId)
+      console.log(response.files)
       files.value = response.files
       nextPageToken.value = response.nextPageToken
     } catch (error) {

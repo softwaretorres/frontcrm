@@ -5,7 +5,7 @@
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex justify-between h-16">
           <div class="flex items-center">
-            <h1 class="text-xl font-bold text-gray-900">Mi Aplicación</h1>
+            <h1 class="text-xl font-bold text-gray-900">{{ nameCompany }}</h1>
           </div>
 
           <div class="flex items-center space-x-4">
@@ -47,7 +47,7 @@
             nDrive
           </router-link>
 
-          <router-link
+          <!-- <router-link
             v-if="canRead('users')"
             to="/users"
             class="flex items-center px-4 py-3 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors"
@@ -69,7 +69,7 @@
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
             </svg>
             Propiedades
-          </router-link>
+          </router-link> -->
         </nav>
       </aside>
 
@@ -80,7 +80,7 @@
 
           <!-- Stats Grid -->
           <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            <div class="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
+            <!-- <div class="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
               <div class="flex items-center justify-between">
                 <div>
                   <p class="text-sm font-medium text-gray-600">Total Usuarios</p>
@@ -92,9 +92,9 @@
                   </svg>
                 </div>
               </div>
-            </div>
+            </div> -->
 
-            <div class="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
+            <!-- <div class="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
               <div class="flex items-center justify-between">
                 <div>
                   <p class="text-sm font-medium text-gray-600">Propiedades</p>
@@ -106,7 +106,7 @@
                   </svg>
                 </div>
               </div>
-            </div>
+            </div> -->
 
             <div class="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
               <div class="flex items-center justify-between">
@@ -167,6 +167,8 @@ import { usePermissions } from '@/composables/usePermissions'
 const router = useRouter()
 const authStore = useAuthStore()
 const { canRead } = usePermissions()
+
+const nameCompany = "Ndrive"
 
 const handleLogout = async () => {
   await authStore.logout()

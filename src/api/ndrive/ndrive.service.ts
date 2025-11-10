@@ -20,11 +20,15 @@ class DriveApiService {
         'Content-Type': 'application/json',
       },
     })
-
+    console.log("desde conet")
     // Interceptor para manejar errores
     this.api.interceptors.response.use(
-      (response) => response,
+      (response) => {
+        console.log("response")
+        return response
+      },
       (error) => {
+        console.log("desde conet", error)
         if (error.response?.status === 401) {
           // Token expirado o no autenticado - redirigir a conectar
           window.location.href = '/connect'
@@ -38,17 +42,17 @@ class DriveApiService {
 
   // Autenticación
   async getAuthStatus(): Promise<{ authenticated: boolean; connected: boolean }> {
-    const { data } =await httpClient.get(API_CONFIG.ENDPOINTS.NDRIVE.STATUS)
+    const { data } = await httpClient.get(API_CONFIG.ENDPOINTS.NDRIVE.STATUS)
     return data
   }
 
   async connect(accessToken?: string): Promise<void> {
     if (accessToken) {
-      await  httpClient.post(API_CONFIG.ENDPOINTS.NDRIVE.CONNECT, { accessToken })
+      await httpClient.post(API_CONFIG.ENDPOINTS.NDRIVE.CONNECT, { code: accessToken })
     } else {
       // OAuth flow - obtiene URL de autorización
       const data = httpClient.get<ApiResponse>(API_CONFIG.ENDPOINTS.NDRIVE.CONNECT)
-     const response = (await data).data
+      const response = (await data).data
       if (response.authUrl) {
         window.location.href = response.authUrl
       }
@@ -56,7 +60,7 @@ class DriveApiService {
   }
 
   async disconnect(): Promise<void> {
-    await  httpClient.post(API_CONFIG.ENDPOINTS.NDRIVE.DISCONNECT)
+    await httpClient.post(API_CONFIG.ENDPOINTS.NDRIVE.DISCONNECT)
   }
 
   // Archivos
@@ -71,11 +75,11 @@ class DriveApiService {
     params.append('pageSize', pageSize.toString())
 
     const { data } = await httpClient.get(`${API_CONFIG.ENDPOINTS.NDRIVE.FILES}?${params}`)
-    return data
+    return data.data
   }
 
   async getFile(fileId: string): Promise<DriveFile> {
-    const { data } =await httpClient.get(`${API_CONFIG.ENDPOINTS.NDRIVE}/${fileId}`)
+    const { data } = await httpClient.get(`${API_CONFIG.ENDPOINTS.NDRIVE}/${fileId}`)
     return data
   }
 
