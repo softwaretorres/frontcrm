@@ -81,8 +81,8 @@ onMounted(async () => {
 async function loadStarredFiles() {
   isLoading.value = true
   try {
-    const response = await driveApi.listStarredFiles()
-    files.value = response.files
+  //  const response = await driveApi.listStarredFiles()
+   // files.value = response.files
   } catch (error) {
     console.error('Error loading starred files:', error)
   } finally {
@@ -98,8 +98,8 @@ function handleFileDoubleClick(file: DriveFile) {
 
 async function handleToggleStar(fileId: string) {
   try {
-    await driveApi.unstarFile(fileId)
-    await loadStarredFiles()
+   // await driveApi.unstarFile(fileId)
+   // await loadStarredFiles()
   } catch (error) {
     console.error('Error toggling star:', error)
   }

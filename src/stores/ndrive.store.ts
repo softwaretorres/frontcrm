@@ -70,6 +70,7 @@ export const useDriveStore = defineStore('drive', () => {
       console.log(response.files)
       files.value = response.files
       nextPageToken.value = response.nextPageToken
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error:any) {
        const validate: boolean = error?.response.data.needsConnection
       if (validate) {

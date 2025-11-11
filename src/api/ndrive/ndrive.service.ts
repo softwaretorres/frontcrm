@@ -52,7 +52,8 @@ class DriveApiService {
     } else {
       // OAuth flow - obtiene URL de autorización
       const data = httpClient.get<ApiResponse>(API_CONFIG.ENDPOINTS.NDRIVE.CONNECT)
-      const response = (await data).data
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const response: any = (await data).data
       if (response.authUrl) {
         window.location.href = response.authUrl
       }
