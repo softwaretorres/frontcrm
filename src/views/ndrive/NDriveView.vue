@@ -238,7 +238,6 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
 
 import { useDriveStore } from '@/stores/ndrive.store'
 import type { DriveFile, DriveFolder } from '@/types'
@@ -250,7 +249,7 @@ import FileListItem from '@/components/ndrive/Filelistitem.vue'
 import UploadProgress from '@/components/ndrive/Uploadprogress.vue'
 
 const store = useDriveStore()
-const router = useRouter()
+
 
 const fileInput = ref<HTMLInputElement>()
 const showCreateFolderModal = ref(false)
@@ -268,18 +267,9 @@ const contextMenu = ref<{
 })
 
 onMounted(async () => {
- try {
+
  await store.loadFiles()
 
-
-  } catch (err:any) {
-     if (err?.reponse.data.needsConnection) {
-      console.log("hola")
-      // Redirige sin recargar la página
-      router.push('/connect')
-    }
-    console.error('Error al cargar archivos:', err)
-  }
 })
 
 function handleUploadClick() {

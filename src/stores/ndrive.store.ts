@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { DriveFile, DriveFolder, UploadProgress } from '@/types/drive'
 import { driveApi } from '@/api/ndrive/ndrive.service'
+import { useRouter } from 'vue-router'
 
 export const useDriveStore = defineStore('drive', () => {
   // Estado
@@ -46,6 +47,7 @@ export const useDriveStore = defineStore('drive', () => {
     return sorted
   })
 
+  const router = useRouter()
 
 
 
@@ -68,7 +70,11 @@ export const useDriveStore = defineStore('drive', () => {
       console.log(response.files)
       files.value = response.files
       nextPageToken.value = response.nextPageToken
-    } catch (error) {
+    } catch (error:any) {
+       const validate: boolean = error?.response.data.needsConnection
+      if (validate) {
+        router.push('/connect')
+      }
       console.error('Error loading files:', error)
       throw error
     } finally {
