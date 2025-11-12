@@ -1,5 +1,5 @@
 <template>
-  <div class="h-screen flex flex-col bg-gray-50">
+
     <!-- Toolbar -->
     <Toolbar
       :has-selection="store.hasSelection"
@@ -233,7 +233,6 @@
         </button>
       </div>
     </Teleport>
-  </div>
 </template>
 
 <script setup lang="ts">

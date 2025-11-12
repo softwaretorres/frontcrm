@@ -1,5 +1,6 @@
 <template>
-  <div class="max-w-7xl mx-auto">
+<div class="w-[80%] max-w-6xl mx-auto">
+
     <!-- Título -->
     <h2 class="text-2xl font-bold text-gray-900 mb-6">Dashboard</h2>
 
