@@ -1,4 +1,6 @@
 import axios, { type AxiosInstance } from 'axios'
+import QRCode from 'qrcode'
+
 import type {
   DriveFile,
   DriveFolder,
@@ -38,7 +40,6 @@ class DriveApiService {
     )
   }
 
-  // ✅ MÉTODOS ACTIVOS (según tus rutas del backend)
 
   // Autenticación
   async getAuthStatus(): Promise<{ authenticated: boolean; connected: boolean }> {
@@ -104,6 +105,75 @@ class DriveApiService {
     return data
   }
 
+  async downloadFile(fileId: string, fileName: string): Promise<void> {
+    try {
+      const response = await httpClient.getInstance().get(
+        `${API_CONFIG.ENDPOINTS.NDRIVE.FILES}/${fileId}/download`,
+        {
+          responseType: 'blob'
+        }
+      )
+
+      // Crear link de descarga
+      const url = window.URL.createObjectURL(new Blob([response.data]))
+      const link = document.createElement('a')
+      link.href = url
+      link.download = fileName
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
+
+      console.log('✅ Archivo descargado:', fileName)
+    } catch (error) {
+      console.error('❌ Error al descargar:', error)
+      throw error
+    }
+  }
+
+  // En driveApi.service.ts
+
+  async getShareLink(fileId: string): Promise<string> {
+    const { data } = await httpClient.post(
+      `${API_CONFIG.ENDPOINTS.NDRIVE.FILES}/${fileId}/share`
+    )
+    return data.data.shareLink
+  }
+
+  async createShareLink(fileId: string): Promise<string> {
+  const response = await httpClient.getInstance().post(
+    `${API_CONFIG.ENDPOINTS.NDRIVE.FILES}/${fileId}/share`
+  )
+  return response.data.data.shareLink
+}
+
+    async generateQRCode(link: string): Promise<string> {
+    try {
+      const qrDataUrl = await QRCode.toDataURL(link, {
+        width: 300,
+        margin: 2,
+        color: {
+          dark: '#000000',
+          light: '#FFFFFF'
+        }
+      })
+      return qrDataUrl
+    } catch (error) {
+      console.error('Error generando QR:', error)
+      throw error
+    }
+  }
+
+  async copyToClipboard(text: string): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(text)
+      console.log('✅ Link copiado al clipboard')
+    } catch (error) {
+      console.error('❌ Error al copiar:', error)
+      throw error
+    }
+  }
+
   // ❌ MÉTODOS COMENTADOS (para cuando los implementes en tu backend)
 
   /*
@@ -112,12 +182,7 @@ class DriveApiService {
     return data
   }
 
-  async downloadFile(fileId: string): Promise<Blob> {
-    const { data } = await this.api.get(`/api/drive/files/${fileId}/download`, {
-      responseType: 'blob',
-    })
-    return data
-  }
+
 
   async uploadFile(
     file: File,

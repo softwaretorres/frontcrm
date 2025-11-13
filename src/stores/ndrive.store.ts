@@ -70,9 +70,9 @@ export const useDriveStore = defineStore('drive', () => {
       console.log(response.files)
       files.value = response.files
       nextPageToken.value = response.nextPageToken
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } catch (error:any) {
-       const validate: boolean = error?.response.data.needsConnection
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } catch (error: any) {
+      const validate: boolean = error?.response.data.needsConnection
       if (validate) {
         router.push('/connect')
       }
@@ -218,11 +218,14 @@ export const useDriveStore = defineStore('drive', () => {
   }
 
   async function downloadFile(file: DriveFile) {
-    // Abrir en nueva pestaña usando webViewLink de Google Drive
-    if (file.webViewLink) {
-      window.open(file.webViewLink, '_blank')
-    } else {
-      alert('Este archivo no tiene un enlace de visualización disponible')
+    try {
+      isLoading.value = true
+      await driveApi.downloadFile(file.id, file.name)
+    } catch (error) {
+      console.error('Error al descargar:', error)
+      alert('Error al descargar el archivo')
+    } finally {
+      isLoading.value = false
     }
   }
 
@@ -249,6 +252,27 @@ export const useDriveStore = defineStore('drive', () => {
   function clearSelection() {
     selectedFiles.value.clear()
   }
+
+  async function copyShareLink(file: DriveFile) {
+    try {
+      if (file.webViewLink) {
+        await navigator.clipboard.writeText(file.webViewLink)
+      } else {
+        const link = await driveApi.getShareLink(file.id)
+        await navigator.clipboard.writeText(link)
+      }
+    } catch (error) {
+      console.error('Error copying link:', error)
+      throw error
+    }
+  }
+
+  // En tu store, agrega:
+
+async function getShareLink(fileId: string): Promise<string> {
+  return await driveApi.getShareLink(fileId)
+}
+
 
   function setSortBy(field: 'name' | 'modifiedTime' | 'size') {
     if (sortBy.value === field) {
@@ -290,7 +314,9 @@ export const useDriveStore = defineStore('drive', () => {
     deleteSelectedFiles,
     renameFile,
     toggleStar,
+    getShareLink,
     downloadFile,
+    copyShareLink,
     selectFile,
     deselectFile,
     toggleSelectFile,
