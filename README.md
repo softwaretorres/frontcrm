@@ -1,5 +1,6 @@
 # frontcrm
-
+se creo esta env nuevo 
+VITE_API_BASE_URL_DOMAIN=http://localhost:3000
 This template should help get you started developing with Vue 3 in Vite.
 
 ## Recommended IDE Setup
