@@ -1,4 +1,3 @@
-
 <template>
   <div v-if="show" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" @click.self="$emit('close')">
     <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
@@ -28,10 +27,11 @@
 
         <div class="flex gap-2">
           <input
+            ref="linkInput"
             v-model="shareLink"
             readonly
             class="flex-1 px-3 py-2 border rounded-lg bg-gray-50 text-sm"
-            @click="$event.target.select()"
+            @click="selectLink"
           />
           <button
             @click="copyLink"
@@ -63,13 +63,14 @@ interface Props {
 }
 
 const props = defineProps<Props>()
-const emit = defineEmits<{ close: [] }>()
+defineEmits<{ close: [] }>()
 
 const loading = ref(false)
 const error = ref<string | null>(null)
 const qrCode = ref<string>('')
 const shareLink = ref<string>('')
 const copied = ref(false)
+const linkInput = ref<HTMLInputElement | null>(null)
 
 watch(() => props.show, async (show) => {
   if (show && props.file) {
@@ -90,6 +91,10 @@ async function generateQR() {
   } finally {
     loading.value = false
   }
+}
+
+function selectLink() {
+  linkInput.value?.select()
 }
 
 async function copyLink() {
