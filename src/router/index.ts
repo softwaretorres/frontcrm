@@ -7,6 +7,12 @@ const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
     {
+      path: '/share/:fileId',
+      name: 'SharedFile',
+      component: () => import('@/views/ndrive/SharedFileView.vue'),
+      meta: { requiresAuth: false }
+    },
+    {
       path: '/login',
       name: 'login',
       component: () => import('@/views/auth/LoginView.vue'),
@@ -38,6 +44,7 @@ const router = createRouter({
           name: 'connect',
           component: () => import('@/views/ndrive/ConnetView.vue'),
         },
+
         {
           path: '/starred',
           name: 'starred',
