@@ -16,10 +16,6 @@
 
     <div v-else class="h-screen flex flex-col">
       <!-- Header con info del archivo -->
-      <div class="bg-white shadow px-6 py-4">
-        <h1 class="text-xl font-semibold text-gray-800">{{ metadata?.name }}</h1>
-        <p class="text-sm text-gray-500">{{ formatFileSize(metadata?.size) }}</p>
-      </div>
 
       <!-- Visor de PDF -->
       <div class="flex-1">
@@ -45,7 +41,7 @@ const error = ref<string | null>(null)
 const metadata = ref<any>(null)
 
 const fileId = computed(() => route.params.fileId as string)
-const fileUrl = computed(() => `${import.meta.env.VITE_API_BASE_URL_DOMAIN}/drive/share/${fileId.value}`)
+const fileUrl = computed(() => `${import.meta.env.VITE_API_BASE_URL_DOMAIN}/share/${fileId.value}`)
 console.log(import.meta.env)
 
 onMounted(async () => {
