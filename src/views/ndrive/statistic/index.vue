@@ -2,47 +2,10 @@
 <template>
   <div class="container-fluid p-6">
     <div class="max-w-6xl mx-auto">
-      <!-- Header con buscador -->
+      <!-- Header -->
       <div class="mb-6">
-        <div class="flex items-center justify-between mb-4">
-          <div>
-            <h1 class="text-2xl font-bold text-gray-900">Links compartidos</h1>
-            <p class="text-gray-600 mt-1">Gestiona todos tus archivos compartidos y sus estadísticas</p>
-          </div>
-          <button
-            @click="loadTokens"
-            class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
-          >
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-            Actualizar
-          </button>
-        </div>
-
-        <!-- Buscador -->
-        <div class="relative">
-          <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-          </div>
-          <input
-            v-model="searchQuery"
-            type="text"
-            placeholder="Buscar por nombre de archivo, ID o token..."
-            class="pl-10 pr-4 py-3 w-full border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          />
-          <button
-            v-if="searchQuery"
-            @click="searchQuery = ''"
-            class="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
-          >
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
+        <h1 class="text-2xl font-bold text-gray-900">Links compartidos</h1>
+        <p class="text-gray-600 mt-1">Gestiona todos tus archivos compartidos y sus estadísticas</p>
       </div>
 
       <!-- Loading -->
@@ -60,31 +23,8 @@
         <p class="text-gray-600">Comparte archivos desde tu Drive para verlos aquí</p>
       </div>
 
-      <!-- Sin resultados de búsqueda -->
-      <div v-else-if="filteredTokens.length === 0" class="bg-white rounded-lg shadow p-12 text-center">
-        <svg class="w-24 h-24 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-        </svg>
-        <h3 class="text-xl font-semibold text-gray-900 mb-2">No se encontraron resultados</h3>
-        <p class="text-gray-600">Intenta con otra búsqueda</p>
-        <button
-          @click="searchQuery = ''"
-          class="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-        >
-          Limpiar búsqueda
-        </button>
-      </div>
-
       <!-- Tabla de links -->
       <div v-else class="bg-white rounded-lg shadow overflow-hidden">
-        <!-- Contador de resultados -->
-        <div class="px-6 py-3 bg-gray-50 border-b border-gray-200">
-          <p class="text-sm text-gray-600">
-            Mostrando <span class="font-semibold">{{ filteredTokens.length }}</span>
-            de <span class="font-semibold">{{ shareTokens.length }}</span> links compartidos
-          </p>
-        </div>
-
         <div class="overflow-x-auto">
           <table class="min-w-full divide-y divide-gray-200">
             <thead class="bg-gray-50">
@@ -110,7 +50,7 @@
               </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
-              <tr v-for="token in filteredTokens" :key="token.id" class="hover:bg-gray-50">
+              <tr v-for="token in shareTokens" :key="token.id" class="hover:bg-gray-50">
                 <!-- Archivo -->
                 <td class="px-6 py-4">
                   <div class="flex items-center">
@@ -221,19 +161,21 @@
       </div>
     </div>
 
-    <!-- Modales -->
+    <!-- Modal de estadísticas detalladas -->
     <StatsModal
       v-if="showStatsModal"
       :token="selectedToken"
       @close="closeStatsModal"
     />
 
+    <!-- Modal QR -->
     <QRViewModal
-      :show="showQRModal"
+      v-if="showQRModal"
       :token="selectedToken"
       @close="closeQRModal"
     />
 
+    <!-- Toast de confirmación -->
     <div
       v-if="showToast"
       class="fixed bottom-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50 animate-fade-in"
@@ -244,7 +186,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted } from 'vue'
 import { driveApi } from '@/api/ndrive/ndrive.service'
 import type { ShareToken } from '@/api/ndrive/ndrive.service'
 import StatsModal from '@/components/ndrive/StatsModal.vue'
@@ -257,23 +199,6 @@ const showStatsModal = ref(false)
 const showQRModal = ref(false)
 const showToast = ref(false)
 const toastMessage = ref('')
-const searchQuery = ref('')
-
-// Filtrar tokens según búsqueda
-const filteredTokens = computed(() => {
-  if (!searchQuery.value.trim()) {
-    return shareTokens.value
-  }
-
-  const query = searchQuery.value.toLowerCase()
-  return shareTokens.value.filter((token) => {
-    return (
-      token.fileName?.toLowerCase().includes(query) ||
-      token.fileId.toLowerCase().includes(query) ||
-      token.token.toLowerCase().includes(query)
-    )
-  })
-})
 
 onMounted(async () => {
   await loadTokens()
@@ -291,7 +216,9 @@ async function loadTokens() {
 }
 
 function getFileName(token: ShareToken): string {
-  return token.fileName || `Archivo ${token.fileId.substring(0, 8)}`
+  // Aquí podrías hacer una llamada para obtener el nombre real del archivo
+  // Por ahora mostramos un placeholder
+  return `Archivo ${token.fileId.substring(0, 8)}`
 }
 
 function formatDate(dateString: string): string {

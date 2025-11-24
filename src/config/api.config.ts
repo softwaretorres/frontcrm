@@ -20,6 +20,7 @@ export const API_CONFIG = {
       ME: '/auth/me'
     },
     NDRIVE: {
+      INIT: '/ndrive',
       CONNECT: '/ndrive/connect',
       STATUS: '/ndrive/status',
 

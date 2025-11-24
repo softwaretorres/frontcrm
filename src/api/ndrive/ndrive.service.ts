@@ -5,11 +5,40 @@ import type {
   DriveFile,
   DriveFolder,
   PaginatedResponse,
-
 } from '@/types/drive'
 import { API_CONFIG } from '@/config/api.config'
 import httpClient from '../http-client'
 import type { ApiResponse } from '@/types'
+
+// Nuevos tipos para tokens de compartición
+export interface ShareTokenResponse {
+  token: string
+  shareUrl: string
+  expiresAt: string
+}
+
+export interface ShareToken {
+  id: number
+  token: string
+  fileId: string
+  userId: number
+  fileName?: string
+  expiresAt: string
+  downloadCount: number
+  isActive: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export interface ShareTokenStats {
+  token: string
+  fileName: string
+  downloadCount: number
+  createdAt: string
+  expiresAt: string
+  isExpired: boolean
+  isActive: boolean
+}
 
 class DriveApiService {
   private api: AxiosInstance
@@ -40,7 +69,6 @@ class DriveApiService {
     )
   }
 
-
   // Autenticación
   async getAuthStatus(): Promise<{ authenticated: boolean; connected: boolean }> {
     const { data } = await httpClient.get(API_CONFIG.ENDPOINTS.NDRIVE.STATUS)
@@ -53,7 +81,6 @@ class DriveApiService {
     } else {
       // OAuth flow - obtiene URL de autorización
       const data = httpClient.get<ApiResponse>(API_CONFIG.ENDPOINTS.NDRIVE.CONNECT)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const response: any = (await data).data
       if (response.authUrl) {
         window.location.href = response.authUrl
@@ -81,7 +108,7 @@ class DriveApiService {
   }
 
   async getFile(fileId: string): Promise<DriveFile> {
-    const { data } = await httpClient.get(`${API_CONFIG.ENDPOINTS.NDRIVE}/${fileId}`)
+    const { data } = await httpClient.get(`${API_CONFIG.ENDPOINTS.NDRIVE.FILES}/${fileId}`)
     return data
   }
 
@@ -131,25 +158,54 @@ class DriveApiService {
     }
   }
 
-  // En driveApi.service.ts
+  // ========== NUEVOS MÉTODOS PARA TOKENS DE COMPARTICIÓN ==========
 
-  async getShareLink(fileId: string): Promise<string> {
+  /**
+   * Crear token de compartición para un archivo
+   */
+  async createShareToken(fileId: string, expirationDays: number = 365): Promise<ShareTokenResponse> {
     const { data } = await httpClient.post(
-      `${API_CONFIG.ENDPOINTS.NDRIVE.FILES}/${fileId}/share`
+      `${API_CONFIG.ENDPOINTS.NDRIVE.FILES}/${fileId}/share-token`,
+      { expirationDays }
     )
-    return data.data.shareLink
+    return data.data
   }
 
-  async createShareLink(fileId: string): Promise<string> {
-  const response = await httpClient.getInstance().post(
-    `${API_CONFIG.ENDPOINTS.NDRIVE.FILES}/${fileId}/share`
-  )
-  return response.data.data.shareLink
-}
+  /**
+   * Listar todos los tokens de compartición del usuario
+   */
+  async listShareTokens(): Promise<ShareToken[]> {
+    const { data } = await httpClient.get(
+      `${API_CONFIG.ENDPOINTS.NDRIVE.INIT}/share-tokens`
+    )
+    return data.data
+  }
 
-    async generateQRCode(link: string): Promise<string> {
+  /**
+   * Revocar un token de compartición
+   */
+  async revokeShareToken(token: string): Promise<void> {
+    await httpClient.delete(
+      `${API_CONFIG.ENDPOINTS.NDRIVE.INIT}/share-tokens/${token}`
+    )
+  }
+
+  /**
+   * Obtener estadísticas de un token
+   */
+  async getShareTokenStats(token: string): Promise<ShareTokenStats> {
+    const { data } = await httpClient.get(
+      `${API_CONFIG.ENDPOINTS.NDRIVE.INIT}/share-tokens/${token}/stats`
+    )
+    return data.data
+  }
+
+  /**
+   * Generar código QR a partir de una URL
+   */
+  async generateQRCode(url: string): Promise<string> {
     try {
-      const qrDataUrl = await QRCode.toDataURL(link, {
+      const qrDataUrl = await QRCode.toDataURL(url, {
         width: 300,
         margin: 2,
         color: {
@@ -164,6 +220,9 @@ class DriveApiService {
     }
   }
 
+  /**
+   * Copiar texto al portapapeles
+   */
   async copyToClipboard(text: string): Promise<void> {
     try {
       await navigator.clipboard.writeText(text)
@@ -173,6 +232,41 @@ class DriveApiService {
       throw error
     }
   }
+
+  /**
+   * Obtener URL de descarga pública (sin autenticación)
+   */
+  getPublicDownloadUrl(token: string): string {
+    const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000'
+    return `${baseUrl}/api/public/download/${token}`
+  }
+
+  /**
+   * Obtener URL de visualización pública (sin autenticación)
+   */
+  getPublicViewUrl(token: string): string {
+    const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000'
+    return `${baseUrl}/api/public/view/${token}`
+  }
+
+  // ========== MÉTODOS ANTIGUOS (DEPRECADOS - puedes eliminarlos) ==========
+
+  async getShareLink(fileId: string): Promise<string> {
+    console.warn('⚠️ getShareLink está deprecado, usa createShareToken en su lugar')
+    const { data } = await httpClient.post(
+      `${API_CONFIG.ENDPOINTS.NDRIVE.FILES}/${fileId}/share`
+    )
+    return data.data.shareLink
+  }
+
+  async createShareLink(fileId: string): Promise<string> {
+    console.warn('⚠️ createShareLink está deprecado, usa createShareToken en su lugar')
+    const response = await httpClient.getInstance().post(
+      `${API_CONFIG.ENDPOINTS.NDRIVE.FILES}/${fileId}/share`
+    )
+    return response.data.data.shareLink
+  }
+
 
   // ❌ MÉTODOS COMENTADOS (para cuando los implementes en tu backend)
 

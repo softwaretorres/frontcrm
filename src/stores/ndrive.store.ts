@@ -1,11 +1,13 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { DriveFile, DriveFolder, UploadProgress } from '@/types/drive'
-import { driveApi } from '@/api/ndrive/ndrive.service'
+import { driveApi, type ShareTokenResponse, type ShareToken } from '@/api/ndrive/ndrive.service'
 import { useRouter } from 'vue-router'
 
 export const useDriveStore = defineStore('drive', () => {
-  // Estado
+  // ========== ESTADO ==========
+
+  // Estado de archivos y carpetas
   const files = ref<DriveFile[]>([])
   const currentFolder = ref<DriveFolder | null>(null)
   const selectedFiles = ref<Set<string>>(new Set())
@@ -19,7 +21,14 @@ export const useDriveStore = defineStore('drive', () => {
   const sortBy = ref<'name' | 'modifiedTime' | 'size'>('name')
   const sortOrder = ref<'asc' | 'desc'>('asc')
 
-  // Computed
+  // Nuevo estado para tokens de compartición
+  const shareTokens = ref<ShareToken[]>([])
+  const isLoadingShareTokens = ref(false)
+
+  const router = useRouter()
+
+  // ========== COMPUTED ==========
+
   const sortedFiles = computed(() => {
     const sorted = [...files.value]
 
@@ -47,10 +56,6 @@ export const useDriveStore = defineStore('drive', () => {
     return sorted
   })
 
-  const router = useRouter()
-
-
-
   const selectedFilesArray = computed(() => {
     return files.value.filter((f) => selectedFiles.value.has(f.id))
   })
@@ -61,7 +66,7 @@ export const useDriveStore = defineStore('drive', () => {
     return Array.from(uploadQueue.value.values()).filter((u) => u.status === 'uploading')
   })
 
-  // Acciones
+  // ========== ACCIONES - NAVEGACIÓN Y ARCHIVOS ==========
 
   async function loadFiles(folderId?: string) {
     isLoading.value = true
@@ -70,7 +75,6 @@ export const useDriveStore = defineStore('drive', () => {
       console.log(response.files)
       files.value = response.files
       nextPageToken.value = response.nextPageToken
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
       const validate: boolean = error?.response.data.needsConnection
       if (validate) {
@@ -130,61 +134,112 @@ export const useDriveStore = defineStore('drive', () => {
     }
   }
 
+  // ========== ACCIONES - DESCARGA ==========
+
+  async function downloadFile(file: DriveFile) {
+    try {
+      isLoading.value = true
+      await driveApi.downloadFile(file.id, file.name)
+    } catch (error) {
+      console.error('Error al descargar:', error)
+      alert('Error al descargar el archivo')
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  // ========== ACCIONES - TOKENS DE COMPARTICIÓN (NUEVO) ==========
+
+  /**
+   * Crear token de compartición para un archivo
+   */
+  async function createShareToken(fileId: string, expirationDays: number = 365): Promise<ShareTokenResponse> {
+    try {
+      isLoading.value = true
+      const response = await driveApi.createShareToken(fileId, expirationDays)
+      return response
+    } catch (error) {
+      console.error('Error al crear token de compartición:', error)
+      throw error
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  /**
+   * Listar todos los tokens de compartición del usuario
+   */
+  async function loadShareTokens() {
+    try {
+      isLoadingShareTokens.value = true
+      shareTokens.value = await driveApi.listShareTokens()
+    } catch (error) {
+      console.error('Error al cargar tokens:', error)
+      throw error
+    } finally {
+      isLoadingShareTokens.value = false
+    }
+  }
+
+  /**
+   * Revocar un token de compartición
+   */
+  async function revokeShareToken(token: string) {
+    try {
+      isLoading.value = true
+      await driveApi.revokeShareToken(token)
+      // Actualizar la lista de tokens
+      await loadShareTokens()
+    } catch (error) {
+      console.error('Error al revocar token:', error)
+      throw error
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  /**
+   * Obtener estadísticas de un token
+   */
+  async function getShareTokenStats(token: string) {
+    try {
+      return await driveApi.getShareTokenStats(token)
+    } catch (error) {
+      console.error('Error al obtener estadísticas:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Generar QR Code para un link
+   */
+  async function generateQRCode(url: string): Promise<string> {
+    try {
+      return await driveApi.generateQRCode(url)
+    } catch (error) {
+      console.error('Error al generar QR:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Copiar link al portapapeles
+   */
+  async function copyToClipboard(text: string) {
+    try {
+      await driveApi.copyToClipboard(text)
+    } catch (error) {
+      console.error('Error al copiar:', error)
+      throw error
+    }
+  }
+
+  // ========== ACCIONES - SUBIR/CREAR (NO IMPLEMENTADAS) ==========
+
   async function uploadFile(file: File, parentId?: string) {
     console.warn('Upload no implementado en el backend aún')
     alert('La funcionalidad de subir archivos aún no está implementada en el backend')
     throw new Error('Funcionalidad no disponible aún')
-
-    /* TODO: Descomentar cuando se implemente en el backend
-    const uploadId = `${Date.now()}-${file.name}`
-
-    uploadQueue.value.set(uploadId, {
-      fileId: uploadId,
-      fileName: file.name,
-      progress: 0,
-      status: 'uploading',
-    })
-
-    try {
-      const uploadedFile = await driveApi.uploadFile(
-        file,
-        parentId || currentFolder.value?.id,
-        (progress) => {
-          const upload = uploadQueue.value.get(uploadId)
-          if (upload) {
-            upload.progress = progress
-            uploadQueue.value.set(uploadId, { ...upload })
-          }
-        }
-      )
-
-      uploadQueue.value.set(uploadId, {
-        fileId: uploadId,
-        fileName: file.name,
-        progress: 100,
-        status: 'completed',
-      })
-
-      // Agregar archivo a la lista
-      files.value.unshift(uploadedFile)
-
-      // Limpiar después de 3 segundos
-      setTimeout(() => {
-        uploadQueue.value.delete(uploadId)
-      }, 3000)
-
-      return uploadedFile
-    } catch (error) {
-      uploadQueue.value.set(uploadId, {
-        fileId: uploadId,
-        fileName: file.name,
-        progress: 0,
-        status: 'error',
-        error: error instanceof Error ? error.message : 'Error desconocido',
-      })
-      throw error
-    }
-    */
   }
 
   async function createFolder(name: string, parentId?: string) {
@@ -192,6 +247,8 @@ export const useDriveStore = defineStore('drive', () => {
     alert('La funcionalidad de crear carpetas aún no está implementada en el backend')
     throw new Error('Funcionalidad no disponible aún')
   }
+
+  // ========== ACCIONES - ELIMINAR (NO IMPLEMENTADAS) ==========
 
   async function deleteFile(fileId: string) {
     console.warn('Delete no implementado en el backend aún')
@@ -205,6 +262,8 @@ export const useDriveStore = defineStore('drive', () => {
     throw new Error('Funcionalidad no disponible aún')
   }
 
+  // ========== ACCIONES - RENOMBRAR/DESTACAR (NO IMPLEMENTADAS) ==========
+
   async function renameFile(fileId: string, newName: string) {
     console.warn('Rename no implementado en el backend aún')
     alert('La funcionalidad de renombrar aún no está implementada en el backend')
@@ -217,17 +276,29 @@ export const useDriveStore = defineStore('drive', () => {
     throw new Error('Funcionalidad no disponible aún')
   }
 
-  async function downloadFile(file: DriveFile) {
+  // ========== ACCIONES - COMPARTIR (DEPRECADAS - mantener para compatibilidad) ==========
+
+  async function copyShareLink(file: DriveFile) {
+    console.warn('⚠️ copyShareLink está deprecado, usa createShareToken + copyToClipboard')
     try {
-      isLoading.value = true
-      await driveApi.downloadFile(file.id, file.name)
+      if (file.webViewLink) {
+        await navigator.clipboard.writeText(file.webViewLink)
+      } else {
+        const link = await driveApi.getShareLink(file.id)
+        await navigator.clipboard.writeText(link)
+      }
     } catch (error) {
-      console.error('Error al descargar:', error)
-      alert('Error al descargar el archivo')
-    } finally {
-      isLoading.value = false
+      console.error('Error copying link:', error)
+      throw error
     }
   }
+
+  async function getShareLink(fileId: string): Promise<string> {
+    console.warn('⚠️ getShareLink está deprecado, usa createShareToken')
+    return await driveApi.getShareLink(fileId)
+  }
+
+  // ========== ACCIONES - SELECCIÓN ==========
 
   function selectFile(fileId: string) {
     selectedFiles.value.add(fileId)
@@ -253,26 +324,7 @@ export const useDriveStore = defineStore('drive', () => {
     selectedFiles.value.clear()
   }
 
-  async function copyShareLink(file: DriveFile) {
-    try {
-      if (file.webViewLink) {
-        await navigator.clipboard.writeText(file.webViewLink)
-      } else {
-        const link = await driveApi.getShareLink(file.id)
-        await navigator.clipboard.writeText(link)
-      }
-    } catch (error) {
-      console.error('Error copying link:', error)
-      throw error
-    }
-  }
-
-  // En tu store, agrega:
-
-async function getShareLink(fileId: string): Promise<string> {
-  return await driveApi.getShareLink(fileId)
-}
-
+  // ========== ACCIONES - VISTA Y ORDENAMIENTO ==========
 
   function setSortBy(field: 'name' | 'modifiedTime' | 'size') {
     if (sortBy.value === field) {
@@ -286,6 +338,8 @@ async function getShareLink(fileId: string): Promise<string> {
   function setViewMode(mode: 'grid' | 'list') {
     viewMode.value = mode
   }
+
+  // ========== RETURN ==========
 
   return {
     // Estado
@@ -302,26 +356,44 @@ async function getShareLink(fileId: string): Promise<string> {
     viewMode,
     sortBy,
     sortOrder,
+    shareTokens,
+    isLoadingShareTokens,
 
-    // Acciones
+    // Acciones - Navegación
     loadFiles,
     loadMoreFiles,
     navigateToFolder,
     navigateToBreadcrumb,
+
+    // Acciones - Archivos
     uploadFile,
     createFolder,
     deleteFile,
     deleteSelectedFiles,
     renameFile,
     toggleStar,
-    getShareLink,
     downloadFile,
+
+    // Acciones - Compartir (nuevas)
+    createShareToken,
+    loadShareTokens,
+    revokeShareToken,
+    getShareTokenStats,
+    generateQRCode,
+    copyToClipboard,
+
+    // Acciones - Compartir (deprecadas)
+    getShareLink,
     copyShareLink,
+
+    // Acciones - Selección
     selectFile,
     deselectFile,
     toggleSelectFile,
     selectAll,
     clearSelection,
+
+    // Acciones - Vista
     setSortBy,
     setViewMode,
   }
